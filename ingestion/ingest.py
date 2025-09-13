@@ -1,8 +1,14 @@
-import os, time, json, feedparser, requests
+import os, time, json, feedparser, requests, sys
 from datetime import datetime, timezone
 
-SUPABASE_URL = os.environ["SUPABASE_URL"].rstrip("/")
-SUPABASE_SERVICE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
+def log(msg): print(msg, flush=True)
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
+SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
+
+if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+    log("❌ Missing SUPABASE_URL or SUPABASE_SERVICE_KEY env")
+    sys.exit(1)
 
 ARTICLES_ENDPOINT = f"{SUPABASE_URL}/rest/v1/articles"
 HEADERS = {
@@ -12,7 +18,6 @@ HEADERS = {
     "Prefer": "resolution=merge-duplicates"
 }
 
-# Start with permitted/official feeds
 FEEDS = [
     "https://www.businesswire.com/portal/site/home/news/subject/?vnsId=31373&rss=1",
     "https://www.prnewswire.com/rss/finance-latest-news.rss",
@@ -29,7 +34,7 @@ def ts(dt):
 
 def put_article(item, source):
     url = item.get("link") or item.get("id")
-    if not url: 
+    if not url:
         return 0
     title = (item.get("title") or "")[:1000]
     summary = (item.get("summary") or "")[:5000]
@@ -49,15 +54,26 @@ def put_article(item, source):
     r = requests.post(ARTICLES_ENDPOINT, headers=HEADERS, data=json.dumps(payload), timeout=30)
     if r.status_code in (201,200,204,409):
         return 1
-    raise RuntimeError(f"Supabase insert failed {r.status_code}: {r.text}")
+    # Log full error body for debugging
+    log(f"⚠️ Insert failed {r.status_code}: {r.text[:300]}")
+    return 0
 
 def main():
-    inserted = 0
+    log(f"SUPABASE_URL endpoint: {ARTICLES_ENDPOINT}")
+    total, errors = 0, 0
     for feed in FEEDS:
+        log(f"Fetching: {feed}")
         f = feedparser.parse(feed)
+        log(f"  Entries: {len(f.entries)}")
         for entry in f.entries[:30]:
-            inserted += put_article(entry, source=feed)
-    print(f"Inserted_or_merged: {inserted}")
+            try:
+                total += put_article(entry, source=feed)
+            except Exception as e:
+                errors += 1
+                log(f"⚠️ Exception: {e}")
+    log(f"Inserted_or_merged: {total}; errors: {errors}")
+    # Exit 0 even if some errors, so cron continues; change to 1 if you want hard fail
+    sys.exit(0)
 
 if __name__ == "__main__":
     main()
