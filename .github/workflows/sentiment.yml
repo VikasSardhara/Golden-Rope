@@ -1,0 +1,44 @@
+name: GRMM Sentiment
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # every 10 minutes
+  workflow_dispatch: {}
+
+jobs:
+  score-events:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Faster installs: cache HF models between runs (optional but helpful)
+      - name: Cache HF models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-cache-${{ runner.os }}-finbert
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # If torch install gives you trouble, uncomment the next step to use CPU wheels:
+      # - name: Install PyTorch CPU wheels
+      #   run: |
+      #     python -m pip install --upgrade pip
+      #     pip install --index-url https://download.pytorch.org/whl/cpu torch==2.3.1
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r sentiment/requirements.txt
+          # If you enabled VADER fallback, also:
+          # pip install vaderSentiment==3.3.2
+
+      - name: Score events with FinBERT
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          python sentiment/score_events.py
