@@ -2,7 +2,7 @@ name: GRMM Sentiment
 
 on:
   schedule:
-    - cron: "*/10 * * * *"   # every 10 minutes
+    - cron: "*/10 * * * *"
   workflow_dispatch: {}
 
 jobs:
@@ -11,8 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Faster installs: cache HF models between runs (optional but helpful)
-      - name: Cache HF models
+      - name: Cache HF models (optional)
         uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface
@@ -23,20 +22,22 @@ jobs:
         with:
           python-version: "3.11"
 
-      # If torch install gives you trouble, uncomment the next step to use CPU wheels:
-      # - name: Install PyTorch CPU wheels
-      #   run: |
-      #     python -m pip install --upgrade pip
-      #     pip install --index-url https://download.pytorch.org/whl/cpu torch==2.3.1
-
-      - name: Install deps
+      # 1) Always install the tiny deps (requests + VADER) so fallback works
+      - name: Install minimal deps (VADER + requests)
         run: |
           python -m pip install --upgrade pip
           pip install -r sentiment/requirements.txt
-          # If you enabled VADER fallback, also:
-          # pip install vaderSentiment==3.3.2
 
-      - name: Score events with FinBERT
+      # 2) Try to install FinBERT deps; DO NOT fail job if this step fails
+      - name: Try install FinBERT deps (torch/transformers)
+        continue-on-error: true
+        run: |
+          # Use smaller CPU wheels to reduce failures
+          python -m pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu torch==2.3.1
+          pip install transformers==4.44.2 tokenizers==0.19.1
+
+      - name: Score events (auto-fallback to VADER if FinBERT unavailable)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
