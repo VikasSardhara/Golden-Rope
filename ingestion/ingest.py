@@ -21,11 +21,13 @@ HEADERS_DB = {
 
 # Start with permissive feeds; add BusinessWire/FT later
 FEEDS = [
-    "https://feeds.reuters.com/reuters/businessNews",
-    "https://feeds.reuters.com/reuters/financialsNews",
-    "https://feeds.a.dj.com/rss/RSSMarketsMain.xml",
-    "https://www.prnewswire.com/rss/finance-latest-news.rss"
+    "https://feeds.a.dj.com/rss/RSSMarketsMain.xml",           # WSJ Markets (works on GH runners)
+    "https://www.marketwatch.com/feeds/topstories",            # MarketWatch
+    "https://www.globenewswire.com/RssFeed/subjectcode/3",     # Finance subject
+    "https://www.globenewswire.com/RssFeed/subjectcode/44",    # Banking
+    "https://www.globenewswire.com/RssFeed/subjectcode/35"     # M&A
 ]
+
 
 UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
