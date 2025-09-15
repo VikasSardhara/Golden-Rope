@@ -38,19 +38,25 @@ def already_have_signal(event_id):
     return len(r.json()) > 0
 
 def insert_signals(ev, priors):
+    # scale prior by (1 + alpha * sentiment), clip to reasonable bounds
+    alpha = 0.75  # sensitivity; tune later
+    s = ev.get("sentiment")
+    scale = (1 + alpha * s) if s is not None else 1.0
     rows = []
     for horizon, pred in priors.items():
+        adj = max(min(pred * scale, 0.05), -0.05)  # clamp to +/-5% just for safety
         rows.append({
             "event_id": ev["event_id"],
             "ticker": ev.get("primary_ticker"),
             "horizon": horizon,
-            "predicted_return": pred,
+            "predicted_return": adj,
             "uncertainty": 0.02,
-            "direction": 1 if pred > 0 else -1 if pred < 0 else 0
+            "direction": 1 if adj > 0 else -1 if adj < 0 else 0
         })
     r = requests.post(SIGNALS, headers=JSON_HEADERS, data=json.dumps(rows), timeout=30)
     if r.status_code not in (200,201,204,409):
         raise RuntimeError(f"Insert signals failed {r.status_code}: {r.text[:200]}")
+
 
 def process():
     evs = recent_events()
