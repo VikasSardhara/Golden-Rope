@@ -129,6 +129,11 @@ with tab2:
 with tab3:
     st.subheader("Latest Signals")
     s_df = fetch_signals(limit=400, ticker=ticker)
+    if ticker:
+    st.markdown("#### Price (last 1y)")
+    data = yf.Ticker(ticker.upper()).history(period="1y")
+    if not data.empty:
+        st.line_chart(data["Close"])
     if not s_df.empty:
         # Add pretty %
         if "predicted_return" in s_df.columns:
