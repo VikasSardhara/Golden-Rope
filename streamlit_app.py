@@ -1,6 +1,6 @@
 import os, json, requests, pandas as pd, streamlit as st
 from datetime import datetime, timedelta, timezone
-import yfinance as yf  # <<< ADDED
+import yfinance as yf 
 
 # ----------------- Config & Secrets -----------------
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
@@ -140,7 +140,7 @@ with tab3:
             use_container_width=True, hide_index=True
         )
 
-        # <<< ADDED: simple price chart for the selected ticker
+        
         if ticker:
             st.markdown("#### Price (last 1y)")
             try:
@@ -151,7 +151,7 @@ with tab3:
                     st.info("No price data for this ticker.")
             except Exception as e:
                 st.warning(f"Could not load price data: {e}")
-        # >>> END ADDED
+        
 
     else:
         st.info("No signals generated yet.")
