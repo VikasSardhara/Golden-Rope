@@ -1,5 +1,6 @@
 import os, json, requests, pandas as pd, streamlit as st
 from datetime import datetime, timedelta, timezone
+import yfinance as yf  # <<< ADDED
 
 # ----------------- Config & Secrets -----------------
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
@@ -129,15 +130,28 @@ with tab2:
 with tab3:
     st.subheader("Latest Signals")
     s_df = fetch_signals(limit=400, ticker=ticker)
-    if ticker:
-    st.markdown("#### Price (last 1y)")
-    data = yf.Ticker(ticker.upper()).history(period="1y")
-    if not data.empty:
-        st.line_chart(data["Close"])
     if not s_df.empty:
         # Add pretty %
         if "predicted_return" in s_df.columns:
             s_df["predicted_return_pct"] = s_df["predicted_return"].apply(pctfmt)
-        st.dataframe(s_df[["generated_at","event_id","ticker","horizon","predicted_return","predicted_return_pct","direction","uncertainty"]].sort_values("generated_at", ascending=False), use_container_width=True, hide_index=True)
+        st.dataframe(
+            s_df[["generated_at","event_id","ticker","horizon","predicted_return","predicted_return_pct","direction","uncertainty"]]
+            .sort_values("generated_at", ascending=False),
+            use_container_width=True, hide_index=True
+        )
+
+        # <<< ADDED: simple price chart for the selected ticker
+        if ticker:
+            st.markdown("#### Price (last 1y)")
+            try:
+                data = yf.Ticker(ticker.upper()).history(period="1y")
+                if not data.empty:
+                    st.line_chart(data["Close"])
+                else:
+                    st.info("No price data for this ticker.")
+            except Exception as e:
+                st.warning(f"Could not load price data: {e}")
+        # >>> END ADDED
+
     else:
         st.info("No signals generated yet.")
