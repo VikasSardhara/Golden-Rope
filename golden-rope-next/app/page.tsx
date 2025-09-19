@@ -1,6 +1,6 @@
 import { getArticles, getEvents, getSignals } from "@lib/supabaseFetch";
 import FilterBar from "./components/FilterBar";
-import { Table } from "./components/Table";
+import { Table } from "./components/Table"; 
 
 function pct(x: any) {
   if (typeof x !== "number") return "—";
