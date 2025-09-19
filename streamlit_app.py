@@ -1,5 +1,6 @@
 import os, json, requests, pandas as pd, streamlit as st
 from datetime import datetime, timedelta, timezone
+import yfinance as yf 
 
 # ----------------- Config & Secrets -----------------
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
@@ -133,6 +134,24 @@ with tab3:
         # Add pretty %
         if "predicted_return" in s_df.columns:
             s_df["predicted_return_pct"] = s_df["predicted_return"].apply(pctfmt)
-        st.dataframe(s_df[["generated_at","event_id","ticker","horizon","predicted_return","predicted_return_pct","direction","uncertainty"]].sort_values("generated_at", ascending=False), use_container_width=True, hide_index=True)
+        st.dataframe(
+            s_df[["generated_at","event_id","ticker","horizon","predicted_return","predicted_return_pct","direction","uncertainty"]]
+            .sort_values("generated_at", ascending=False),
+            use_container_width=True, hide_index=True
+        )
+
+
+        if ticker:
+            st.markdown("#### Price (last 1y)")
+            try:
+                data = yf.Ticker(ticker.upper()).history(period="1y")
+                if not data.empty:
+                    st.line_chart(data["Close"])
+                else:
+                    st.info("No price data for this ticker.")
+            except Exception as e:
+                st.warning(f"Could not load price data: {e}")
+     
+
     else:
         st.info("No signals generated yet.")
