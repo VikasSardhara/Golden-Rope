@@ -1,15 +1,11 @@
 import { getArticles, getEvents, getSignals } from "@lib/supabaseFetch";
 import FilterBar from "./components/FilterBar";
-import { Table } from "./components/Table"; 
+import { Table } from "./components/Table";
+import { SignalCard, EventCard, ArticleCard } from "./components/Cards";
 
-function pct(x: any) {
-  if (typeof x !== "number") return "—";
-  return `${(x * 100).toFixed(2)}%`;
-}
+function pct(x: any) { if (typeof x !== "number") return "—"; return `${(x * 100).toFixed(2)}%`; }
 function withinHours(iso: string | null, hours: number) {
-  if (!iso) return false;
-  const t = new Date(iso);
-  return Date.now() - t.getTime() <= hours * 3600 * 1000;
+  if (!iso) return false; const t = new Date(iso); return Date.now() - t.getTime() <= hours * 3600 * 1000;
 }
 
 export default async function Page({ searchParams }: { searchParams: Record<string, string | string[] | undefined> }) {
@@ -17,100 +13,80 @@ export default async function Page({ searchParams }: { searchParams: Record<stri
   const ticker = (searchParams.ticker as string | undefined)?.toUpperCase() || "";
   const types = ((searchParams.types as string | undefined) ?? "CEO_CHANGE").split(",").filter(Boolean);
 
-  // Server-side fetch (service key never hits the browser)
+  // Fetch in parallel
   const [articlesRaw, eventsRaw, signalsRaw] = await Promise.all([
-    getArticles(200), getEvents(400), getSignals(400)
+    getArticles(200),
+    getEvents(200),
+    getSignals(400),
   ]);
 
-  // Filter in server component (simple & safe)
-  const articles = articlesRaw.filter((a: any) =>
-    withinHours(a.first_seen_at, hours) &&
-    (!ticker || (a.title?.toUpperCase().includes(ticker) || a.summary?.toUpperCase().includes(ticker)))
-  );
+  // Filter server-side (SSR) to keep client light
+  const filterByTicker = (x: any) => !ticker || (x.ticker ?? "").toUpperCase().includes(ticker);
+  const within = (x: any, key: string) => {
+    const ts = x[key] ?? x.ts ?? x.created_at ?? x.generated_at;
+    return withinHours(ts, hours);
+  };
+  const hasType = (x: any) => !types.length || types.includes(x.type);
 
-  const events = eventsRaw.filter((e: any) =>
-    withinHours(e.created_at, hours) &&
-    (types.includes(e.event_type)) &&
-    (!ticker || (e.primary_ticker?.toUpperCase() === ticker))
-  ).map((e: any) => ({
-    ...e,
-    headline: e.extracted?.headline ?? null
-  }));
+  const articles = articlesRaw.filter(filterByTicker).filter(a => within(a, "ts"));
+  const events = eventsRaw.filter(filterByTicker).filter(e => within(e, "when"));
+  const signals = signalsRaw.filter(filterByTicker).filter(hasType).filter(s => within(s, "generated_at"));
 
-  const signals = signalsRaw.filter((s: any) =>
-    (!ticker || s.ticker?.toUpperCase() === ticker)
-  );
+  const up = signals.filter((s: any) => typeof s.impact === "number" && s.impact > 0).length;
+  const down = signals.filter((s: any) => typeof s.impact === "number" && s.impact < 0).length;
 
   return (
-    <>
-      <h1>🪢 Golden Rope — Live Dashboard</h1>
-      <p className="muted">Articles → Events (with sentiment) → Signals (predicted returns). Server-rendered, fast on Vercel.</p>
+    <main style={{ padding: 16, display: "grid", gap: 16 }}>
+      <h1 style={{ fontSize: 24, fontWeight: 700 }}>Golden Rope — Market Monitor</h1>
 
       <FilterBar />
 
-      <div className="grid grid-3" style={{margin: "16px 0"}}>
-        <div className="kpi">
-          <span className="muted">Articles (window)</span>
-          <span className="big">{articles.length}</span>
-        </div>
-        <div className="kpi">
-          <span className="muted">Events (window)</span>
-          <span className="big">{events.length}</span>
-        </div>
-        <div className="kpi">
-          <span className="muted">Signals (total)</span>
-          <span className="big">{signals.length}</span>
+      {/* KPIs */}
+      <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+        <div className="card"><div className="card-title">Signals</div><div style={{ fontSize: 28, fontWeight: 700 }}>{signals.length}</div></div>
+        <div className="card"><div className="card-title">Events</div><div style={{ fontSize: 28, fontWeight: 700 }}>{events.length}</div></div>
+        <div className="card"><div className="card-title">Articles</div><div style={{ fontSize: 28, fontWeight: 700 }}>{articles.length}</div></div>
+        <div className="card">
+          <div className="card-title">Signal Skew</div>
+          <div className="muted">Up {up} • Down {down}</div>
         </div>
       </div>
 
-      <div className="grid grid-2" style={{marginTop: 16}}>
-        <section>
-          <h2>Articles</h2>
-          <Table
-            columns={[
-              { key: "first_seen_at", label: "First Seen" },
-              { key: "source", label: "Source" },
-              { key: "title", label: "Title", format: (v) => v },
-              { key: "url", label: "Link", format: (v) => v ? <a href={v} target="_blank">open</a> : "—" }
-            ]}
-            rows={articles}
-            emptyText="No articles in range."
-          />
-        </section>
-
-        <section>
-          <h2>Events</h2>
-          <Table
-            columns={[
-              { key: "created_at", label: "Time" },
-              { key: "event_type", label: "Type" },
-              { key: "primary_ticker", label: "Ticker" },
-              { key: "headline", label: "Headline" },
-              { key: "sentiment", label: "Sentiment", format: (v) => typeof v === "number" ? v.toFixed(2) : "—" },
-              { key: "confidence", label: "Conf.", format: (v) => typeof v === "number" ? v.toFixed(2) : "—" }
-            ]}
-            rows={events}
-            emptyText="No events match filters."
-          />
-        </section>
-      </div>
-
-      <section style={{marginTop: 16}}>
-        <h2>Signals</h2>
-        <Table
-          columns={[
-            { key: "generated_at", label: "Time" },
-            { key: "event_id", label: "Event" },
-            { key: "ticker", label: "Ticker" },
-            { key: "horizon", label: "Horizon" },
-            { key: "predicted_return", label: "Predicted", format: (v) => pct(v) },
-            { key: "direction", label: "Dir" },
-            { key: "uncertainty", label: "Unc.", format: (v) => typeof v === "number" ? v.toFixed(2) : "—" }
-          ]}
-          rows={signals}
-          emptyText="No signals yet."
-        />
+      {/* Signals grid */}
+      <section>
+        <h2 className="section-title">Signals</h2>
+        {signals.length === 0 ? (
+          <div className="card">No signals in the last {hours}h</div>
+        ) : (
+          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
+            {signals.map((s: any) => <SignalCard key={s.id ?? JSON.stringify(s)} s={s} />)}
+          </div>
+        )}
       </section>
-    </>
+
+      {/* Events grid */}
+      <section>
+        <h2 className="section-title">Events</h2>
+        {events.length === 0 ? (
+          <div className="card">No events in the last {hours}h</div>
+        ) : (
+          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
+            {events.map((e: any) => <EventCard key={e.id ?? JSON.stringify(e)} e={e} />)}
+          </div>
+        )}
+      </section>
+
+      {/* Articles grid */}
+      <section>
+        <h2 className="section-title">Articles</h2>
+        {articles.length === 0 ? (
+          <div className="card">No articles in the last {hours}h</div>
+        ) : (
+          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
+            {articles.map((a: any) => <ArticleCard key={a.id ?? JSON.stringify(a)} a={a} />)}
+          </div>
+        )}
+      </section>
+    </main>
   );
 }
