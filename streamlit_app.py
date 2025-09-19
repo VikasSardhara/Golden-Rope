@@ -129,7 +129,6 @@ with tab2:
 with tab3:
     st.subheader("Latest Signals")
     s_df = fetch_signals(limit=400, ticker=ticker)
-   
     if not s_df.empty:
         # Add pretty %
         if "predicted_return" in s_df.columns:
