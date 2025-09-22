@@ -67,7 +67,8 @@ def insert_event(article, extracted):
         "event_type": "CEO_CHANGE",
         "primary_ticker": extracted.get("primary_ticker"),
         "affected_tickers": extracted.get("affected_tickers", []),
-        "sentiment": extracted.get("sentiment", 0.0),
+        # REMOVE 'sentiment' here so DB stores NULL until the scorer fills it
+        # "sentiment": None,
         "novelty": extracted.get("novelty", 0.0),
         "confidence": extracted.get("confidence", 0.6),
         "extracted": extracted,
@@ -76,6 +77,7 @@ def insert_event(article, extracted):
     r = requests.post(EVENTS, headers=JSON_HEADERS, data=json.dumps(body), timeout=30)
     if r.status_code not in (201,200,204,409):
         raise RuntimeError(f"Insert event failed {r.status_code}: {r.text[:300]}")
+
 
 def process():
     arts = recent_articles(hours=6, limit=300)
